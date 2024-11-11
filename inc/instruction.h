@@ -39,6 +39,7 @@ enum branch_type {
 };
 
 struct ooo_model_instr {
+  uint64_t thread_id = 0;
   uint64_t instr_id = 0;
   uint64_t ip = 0;
   uint64_t event_cycle = 0;
@@ -49,6 +50,9 @@ struct ooo_model_instr {
   bool branch_mispredicted = 0; // A branch can be mispredicted even if the direction prediction is correct when the predicted target is not correct
 
   std::array<uint8_t, 2> asid = {std::numeric_limits<uint8_t>::max(), std::numeric_limits<uint8_t>::max()};
+
+  uint32_t opcode[15];
+  uint32_t opcode_size;
 
   uint8_t branch_type = NOT_BRANCH;
   uint64_t branch_target = 0;
@@ -73,8 +77,11 @@ struct ooo_model_instr {
 
 private:
   template <typename T>
-  ooo_model_instr(T instr, std::array<uint8_t, 2> local_asid) : ip(instr.ip), is_branch(instr.is_branch), branch_taken(instr.branch_taken), asid(local_asid)
+  ooo_model_instr(T instr, std::array<uint8_t, 2> local_asid) : thread_id(instr.thread_id), ip(instr.ip), is_branch(instr.is_branch), branch_taken(instr.branch_taken), 
+	asid(local_asid), opcode_size(instr.opcode_size)
   {
+    std::copy(std::begin(instr.opcode), std::begin(instr.opcode) + instr.opcode_size, std::begin(this->opcode));
+
     std::remove_copy(std::begin(instr.destination_registers), std::end(instr.destination_registers), std::back_inserter(this->destination_registers), 0);
     std::remove_copy(std::begin(instr.source_registers), std::end(instr.source_registers), std::back_inserter(this->source_registers), 0);
     std::remove_copy(std::begin(instr.destination_memory), std::end(instr.destination_memory), std::back_inserter(this->destination_memory), 0);

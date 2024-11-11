@@ -78,6 +78,9 @@ phase_stats do_phase(phase_info phase, environment& env, std::vector<tracereader
     for (O3_CPU& cpu : env.cpu_view()) {
       auto& trace = traces.at(trace_index.at(cpu.cpu));
       for (auto pkt_count = cpu.IN_QUEUE_SIZE - static_cast<long>(std::size(cpu.input_queue)); !trace.eof() && pkt_count > 0; --pkt_count)
+	/*if (trace.address == 0) {
+	   continue;
+	}*/
         cpu.input_queue.push_back(trace());
 
       // If any trace reaches EOF, terminate all phases

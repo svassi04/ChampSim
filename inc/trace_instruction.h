@@ -33,6 +33,7 @@ constexpr std::size_t NUM_INSTR_DESTINATIONS = 2;
 constexpr std::size_t NUM_INSTR_SOURCES = 4;
 
 struct input_instr {
+  unsigned long long thread_id;
   // instruction pointer or PC (Program Counter)
   unsigned long long ip;
 
@@ -45,9 +46,13 @@ struct input_instr {
 
   unsigned long long destination_memory[NUM_INSTR_DESTINATIONS]; // output memory
   unsigned long long source_memory[NUM_INSTR_SOURCES];           // input memory
+
+  uint8_t opcode[64]; // Holds the opcode bytes (max 15 bytes for x86/x64)
+  uint32_t opcode_size; // Number of valid bytes in the opcode array
 };
 
 struct cloudsuite_instr {
+  unsigned long long thread_id;
   // instruction pointer or PC (Program Counter)
   unsigned long long ip;
 
@@ -62,6 +67,9 @@ struct cloudsuite_instr {
   unsigned long long source_memory[NUM_INSTR_SOURCES];                 // input memory
 
   unsigned char asid[2];
+
+  uint8_t opcode[64]; // Holds the opcode bytes (max 15 bytes for x86/x64)
+  uint32_t opcode_size; // Number of valid bytes in the opcode array
 };
 
 #endif

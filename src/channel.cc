@@ -23,6 +23,8 @@
 #include "instruction.h"
 #include <fmt/core.h>
 
+#include <iostream>
+
 champsim::channel::channel(std::size_t rq_size, std::size_t pq_size, std::size_t wq_size, unsigned offset_bits, bool match_offset)
     : RQ_SIZE(rq_size), PQ_SIZE(pq_size), WQ_SIZE(wq_size), OFFSET_BITS(offset_bits), match_offset_bits(match_offset)
 {
@@ -114,6 +116,10 @@ void champsim::channel::check_collision()
 template <typename R>
 bool champsim::channel::do_add_queue(R& queue, std::size_t queue_size, const typename R::value_type& packet)
 {
+  if (packet.address == 0){
+    std::cout << "[channel] " << __func__ << std::hex << " instr_ip: " << packet.ip << " instr_id: " << packet.instr_id << " address: " << packet.address << " v_address: " << packet.v_address <<
+        " type: " << access_type_names.at(champsim::to_underlying(packet.type)) << "\n";
+  }
   assert(packet.address != 0);
 
   // check occupancy

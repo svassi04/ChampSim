@@ -22,6 +22,8 @@
 #include <memory>
 #include <numeric>
 #include <string>
+#include <cassert>
+#include <iostream>
 
 #include "instruction.h"
 #include "util/detect.h"
@@ -77,12 +79,14 @@ class bulk_tracereader
 {
   static_assert(std::is_trivial_v<T>);
   static_assert(std::is_standard_layout_v<T>);
+//  static_assert(sizeof(T) == 56, "Unexpected input_instr size with thread_id field");
 
   uint8_t cpu;
   bool eof_ = false;
   F trace_file;
 
-  constexpr static std::size_t buffer_size = 128;
+//  constexpr static std::size_t buffer_size = 128;
+  constexpr static std::size_t buffer_size = 168;
   constexpr static std::size_t refresh_thresh = 1;
   std::deque<ooo_model_instr> instr_buffer;
 
@@ -112,10 +116,17 @@ ooo_model_instr bulk_tracereader<T, F>::operator()()
     std::array<char, std::size(trace_read_buf) * sizeof(T)> raw_buf;
     std::size_t bytes_read;
 
+    // Check if the file read size aligns with struct size
+//    static_assert(sizeof(T) == 56, "Expected 56-byte size for input_instr with thread_id field");
+
     // Read from trace file
     trace_file.read(std::data(raw_buf), std::size(raw_buf));
     bytes_read = static_cast<std::size_t>(trace_file.gcount());
     eof_ = trace_file.eof();
+
+    if (bytes_read % sizeof(T) != 0) {  // ADDED ERROR CHECK for incomplete read
+        throw std::runtime_error("Incomplete instruction read from trace file");
+    }
 
     // Transform bytes into trace format instructions
     std::memcpy(std::data(trace_read_buf), std::data(raw_buf), bytes_read);
@@ -123,13 +134,32 @@ ooo_model_instr bulk_tracereader<T, F>::operator()()
     // Inflate trace format into core model instructions
     auto begin = std::begin(trace_read_buf);
     auto end = std::next(begin, bytes_read / sizeof(T));
-    std::transform(begin, end, std::back_inserter(instr_buffer), [cpu = this->cpu](T t) { return ooo_model_instr{cpu, t}; });
+//    std::transform(begin, end, std::back_inserter(instr_buffer), [cpu = this->cpu](T t) { return ooo_model_instr{cpu, t}; });
+//    std::transform(begin, end, std::back_inserter(instr_buffer), [cpu = this->cpu](T t) { assert(t.ip != 0); auto val = ooo_model_instr{cpu, t}; assert(val.ip != 0); return val; });
+
+    std::transform(begin, end, std::back_inserter(instr_buffer), [cpu = this->cpu](T t) {
+        assert(t.ip != 0);
+        auto val = ooo_model_instr{cpu, t};
+/*
+        // NEW CODE: Print opcode for verification
+        std::cout << "Opcode:";
+        for (int i = 0; i < t.opcode_size; ++i) {
+          std::cout << " " << std::hex << static_cast<int>(t.opcode[i]);
+        }
+        std::cout << std::dec << " (" << static_cast<int>(t.opcode_size) << " bytes)" << std::endl;
+*/
+        assert(val.ip != 0); 
+        return val; 
+    });
+
+
 
     // Set branch targets
     set_branch_targets(std::begin(instr_buffer), std::end(instr_buffer));
   }
 
   auto retval = instr_buffer.front();
+  assert(retval.ip != 0);
   instr_buffer.pop_front();
 
   return retval;

@@ -36,6 +36,8 @@ using trace_instr_format_t = input_instr;
 
 UINT64 instrCount = 0;
 
+PIN_LOCK pinLock;
+
 std::ofstream outfile;
 
 trace_instr_format_t curr_instr;
@@ -73,10 +75,23 @@ INT32 Usage()
 // Analysis routines
 /* ===================================================================== */
 
-void ResetCurrentInstruction(VOID* ip)
+VOID ThreadLock (THREADID threadid)
+{
+  PIN_GetLock(&pinLock, threadid + 1);
+//  std::cout << threadid << " ";
+}
+
+VOID ThreadReleaseLock ()
+{
+//  std::cout << curr_instr.ip << "\n";
+  PIN_ReleaseLock(&pinLock);
+}
+
+void ResetCurrentInstruction(VOID* ip, THREADID threadid)
 {
   curr_instr = {};
   curr_instr.ip = (unsigned long long int)ip;
+  curr_instr.thread_id = threadid;
 }
 
 BOOL ShouldWrite()
@@ -106,6 +121,41 @@ void WriteToSet(T* begin, T* end, UINT32 r)
   *found_reg = r;
 }
 
+
+void GetOpCode(VOID *ip, UINT32 size) { 
+
+    UINT8 opcodeBytes[64];
+
+    UINT32 fetched = PIN_SafeCopy(opcodeBytes, ip, size);
+    if (fetched != size) {
+        printf("*** error fetching instruction at address 0x%lx",(unsigned long)ip);
+        return;
+    }
+    curr_instr.opcode_size = fetched;
+    std::memcpy(curr_instr.opcode, opcodeBytes, fetched);
+/*
+    // Print fetched opcode size
+    std::cout << "Opcode size: " << curr_instr.opcode_size << "\n";
+
+    // Print opcode bytes from curr_instr
+    printf(" curr_instr.opcode: ");
+    for (UINT32 i = 0; i < curr_instr.opcode_size; i++) {
+        printf(" %02x", curr_instr.opcode[i]);
+    }
+    printf("\n");
+
+    // Print opcode bytes directly from opcodeBytes for comparison
+    printf(" opcodeBytes: ");
+    for (UINT32 i = 0; i < fetched; i++) {
+        printf(" %02x", opcodeBytes[i]);
+    }
+    printf("\n");
+*/
+
+}
+
+
+
 /* ===================================================================== */
 // Instrumentation callbacks
 /* ===================================================================== */
@@ -113,8 +163,13 @@ void WriteToSet(T* begin, T* end, UINT32 r)
 // Is called for every instruction and instruments reads and writes
 VOID Instruction(INS ins, VOID* v)
 {
-  // begin each instruction with this function
-  INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ResetCurrentInstruction, IARG_INST_PTR, IARG_END);
+  //Lock thread
+  INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ThreadLock, IARG_THREAD_ID, IARG_END);
+
+   // begin each instruction with this function
+  INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ResetCurrentInstruction, IARG_INST_PTR, IARG_THREAD_ID, IARG_END);
+
+  INS_InsertCall( ins, IPOINT_BEFORE, (AFUNPTR)GetOpCode, IARG_INST_PTR, IARG_UINT32, INS_Size(ins) , IARG_END);
 
   // instrument branch instructions
   if (INS_IsBranch(ins))
@@ -152,6 +207,8 @@ VOID Instruction(INS ins, VOID* v)
   // finalize each instruction with this function
   INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)ShouldWrite, IARG_END);
   INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)WriteCurrentInstruction, IARG_END);
+  
+  INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ThreadReleaseLock, IARG_END);
 }
 
 /*!
@@ -161,7 +218,10 @@ VOID Instruction(INS ins, VOID* v)
  * @param[in]   v               value specified by the tool in the
  *                              PIN_AddFiniFunction function call
  */
-VOID Fini(INT32 code, VOID* v) { outfile.close(); }
+VOID Fini(INT32 code, VOID* v) {
+  outfile.close();
+  std::cout << instrCount << "\n";
+}
 
 /*!
  * The main procedure of the tool.

@@ -20,6 +20,8 @@
 #include <chrono>
 #include <cmath>
 #include <numeric>
+#include <iostream>
+#include <iomanip>
 
 #include "cache.h"
 #include "champsim.h"
@@ -110,6 +112,21 @@ void O3_CPU::initialize_instruction()
 
   while (current_cycle >= fetch_resume_cycle && instrs_to_read_this_cycle > 0 && !std::empty(input_queue)) {
     instrs_to_read_this_cycle--;
+    int br_type=8;
+    if      (input_queue.front().branch_type == NOT_BRANCH) {br_type=		0	;}
+    else if (input_queue.front().branch_type == BRANCH_CONDITIONAL) {br_type=	1	;}
+    else if (input_queue.front().branch_type == BRANCH_INDIRECT_CALL) {br_type=	2	;}
+    else if (input_queue.front().branch_type == BRANCH_DIRECT_CALL) {br_type=	3	;}
+    else if (input_queue.front().branch_type == BRANCH_INDIRECT) {br_type=	4	;}
+    else if (input_queue.front().branch_type == BRANCH_DIRECT_JUMP) {br_type=	5	;}
+    else if (input_queue.front().branch_type == BRANCH_RETURN) {br_type=	6	;}
+    else if (input_queue.front().branch_type == BRANCH_OTHER) {br_type=		7	;}
+    std::cerr << std::hex << br_type << " proc " << input_queue.front().thread_id << " [0] 1.1 1 instructions: " << input_queue.front().ip << " func module insn: ";
+	//<< input_queue.front().opcode_size << " ";
+    for (uint32_t i = 0; i < input_queue.front().opcode_size; ++i) {
+        std::cerr << " " << std::setw(2) << std::setfill('0') << static_cast<int>(input_queue.front().opcode[i]);
+    }
+    std::cerr << "\n";
 
     auto stop_fetch = do_init_instruction(input_queue.front());
     if (stop_fetch)
